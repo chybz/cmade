@@ -1,0 +1,2 @@
+GH;nlohmann/json;v3.11.2;JSON_BuildTests=OFF
+GH;cucumber/messages;feature/cpp

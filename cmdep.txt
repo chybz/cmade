@@ -1,0 +1,51 @@
+# -*- CMake -*-
+set(CMDEPS "CMakeDeps.txt")
+set(CMDEP_VERSION "0.1.0")
+set(CMDEP_ARCDIR "build/archives")
+
+function(greeting)
+    message("CMake Dependency Installer v${CMDEP_VERSION}")
+endfunction()
+
+function(make_url TYPE REPO REF)
+    set(URL "")
+    string(REPLACE "/" ";" REPO_PARTS ${REPO})
+    list(GET REPO_PARTS 0 AUTHOR)
+    list(GET REPO_PARTS 1 NAME)
+
+    if(TYPE STREQUAL "GH")
+        # FIXME: handle branches from "heads"
+        # set(URL "https://github.com/${REPO}/archive/refs/heads/${NAME}.zip")
+        set(URL "https://github.com/${REPO}/archive/refs/tags/${REF}.zip")
+    elseif(TYPE STREQUAL "GL")
+        set(URL "https://gtilab.com/${REPO}/-/archive/${NAME}-${REF}.zip")
+    else()
+    endif()
+
+    message("URL is ${URL}")
+    file(DOWNLOAD ${URL} "${CMDEP_ARCDIR}/${NAME}-${REF}.zip" SHOW_PROGRESS)
+endfunction()
+
+function(install_deps)
+    if(NOT EXISTS ${CMDEPS})
+        message("no dependencies")
+        return()
+    endif()
+
+    file(STRINGS ${CMDEPS} DEPS)
+
+    foreach(DEP ${DEPS})
+        list(LENGTH DEP DEP_PARTS)
+
+        if(DEP_PARTS LESS 3)
+            message("ignoring invalid dependency: $DEP (${DEP_PARTS} < 3)")
+            continue()
+        endif()
+
+        list(GET DEP 0 1 2 REPO_PARTS)
+        make_url(${REPO_PARTS})
+    endforeach()
+endfunction()
+
+greeting()
+install_deps()
