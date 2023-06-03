@@ -1,2 +1,4 @@
+WLAB=https://mygit.com:1234/some_path
 GH;nlohmann/json;v3.11.2;JSON_BuildTests=OFF
 GH;cucumber/messages;feature/cpp
+Git:${WLAB};cucumber/messages;feature/cpp
