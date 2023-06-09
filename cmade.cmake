@@ -1,13 +1,31 @@
+set(CMADE "cmade.cmake")
 set(CMDEPS "CMakeDeps.txt")
 set(CMADE_VERSION "0.1.0")
-set(CMADE_ARCDIR "build/archives")
+set(CMADE_CACHE ".cmade/cache")
 
-function(greeting)
-    message("CMake Dependency Installer v${CMADE_VERSION}")
+##############################################################################
+#
+# Utility functions
+#
+##############################################################################
+function(show_help)
+    message(
+        "CMake Dependency Installer v${CMADE_VERSION}\n"
+        "\n"
+        "usage: ${CMADE} COMMAND\n"
+        "\n"
+        "Commands\n"
+        "  install     Install dependencies from ${CMDEPS}\n"
+        "  help        Display this information\n"
+    )
 endfunction()
 
 function(die MSG)
-    message(FATAL_ERROR "CMade error: ${MSG}")
+    message(FATAL_ERROR "CMade: error: ${MSG}")
+endfunction()
+
+function(msg MSG)
+    message("CMade: ${MSG}")
 endfunction()
 
 function(make_url TYPE REPO REF)
@@ -40,15 +58,47 @@ function(make_url TYPE REPO REF)
         die("unrecognized dependency type: ${TYPE}")
     endif()
 
-    message("URL is ${URL}")
-    #file(DOWNLOAD ${URL} "${CMADE_ARCDIR}/${NAME}-${REF}.zip")
+    file(DOWNLOAD ${URL} "${CMADE_CACHE}/${NAME}-${REF}.zip")
 endfunction()
 
+##############################################################################
+#
+# Argument functions
+#
+##############################################################################
+function(parse_arguments)
+    list(LENGTH CMADE_ARGS CMADE_ARGC)
+
+    if (CMADE_ARGC GREATER 0)
+        list(POP_FRONT CMADE_ARGS CMADE_CMD)
+        set(CMADE_CMD "${CMADE_CMD}" PARENT_SCOPE)
+    endif()
+
+    set(CMADE_ARGS ${CMADE_ARGS} PARENT_SCOPE)
+endfunction()
+
+function(process_cmd)
+    if (CMADE_CMD STREQUAL "install")
+        install_deps()
+    elseif (CMADE_CMD STREQUAL "help")
+        show_help()
+    elseif(CMADE_CMD)
+        msg("unknown command: ${CMADE_CMD}")
+    elseif(NOT CMADE_CMD)
+        msg("no command")
+    endif()
+endfunction()
+
+##############################################################################
+#
+# Dependency installation functions
+#
+##############################################################################
 function(install_dep DEP)
     list(LENGTH DEP DEP_PARTS)
 
     if(DEP_PARTS LESS 3)
-        message("ignoring invalid dependency: ${DEP} (${DEP_PARTS} < 3)")
+        msg("ignoring invalid dependency: ${DEP} (${DEP_PARTS} < 3)")
         return()
     endif()
 
@@ -58,7 +108,7 @@ endfunction()
 
 function(install_deps)
     if(NOT EXISTS ${CMDEPS})
-        message("no dependencies")
+        msg("no dependencies")
         return()
     endif()
 
@@ -74,5 +124,24 @@ function(install_deps)
     endforeach()
 endfunction()
 
-greeting()
-install_deps()
+##############################################################################
+#
+# Main part
+#
+##############################################################################
+# Crude script arguments parsing in CMADE_ARGS list
+foreach(_arg RANGE ${CMAKE_ARGC})
+    string(TOLOWER "${CMAKE_ARGV${_arg}}" ARG)
+
+    if (ARG MATCHES "${CMADE}$")
+        math(EXPR _arg "${_arg}+1")
+
+        while(_arg LESS ${CMAKE_ARGC})
+            list(APPEND CMADE_ARGS "${CMAKE_ARGV${_arg}}")
+            math(EXPR _arg "${_arg}+1")
+        endwhile()
+    endif()
+endforeach()
+
+parse_arguments()
+process_cmd()
