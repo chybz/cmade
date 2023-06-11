@@ -1,5 +1,5 @@
 WLAB=https://mygit.com:1234/some_path
-git+GH:nlohmann/json@v3.11.2 JSON_BuildTests=OFF
-git+GH:cucumber/messages
-# git+${WLAB}:cucumber/messages@feature/cpp
+git+GH:nlohmann/json@v3.11.2 -DJSON_BuildTests=OFF
+git+GH:cucumber/gherkin --srcdir=cpp
 https://tukaani.org/xz/xz-5.2.5.tar.gz
+

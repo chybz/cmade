@@ -5,6 +5,7 @@ set(CMADE "cmade")
 set(CMDEPS "CMakeDeps.txt")
 set(CMADE_VERSION "0.1.0")
 set(CMADE_CACHE ".cmade/cache")
+set(CMADE_ENV ".cmade/env")
 list(
     APPEND
     CMADE_OPTIONS
@@ -54,20 +55,21 @@ function(setg VAR VAL)
 endfunction()
 
 function(run_prog)
+    cmake_parse_arguments(RUN "" "DIR" "CMD" ${ARGN})
+
     if(CMADE_SIMULATE)
-        set(CMD "echo")
+        list(PREPEND RUN_CMD "echo")
     endif()
 
-    list(APPEND CMD ${ARGV})
-
     execute_process(
-        COMMAND ${CMD}
+        COMMAND ${RUN_CMD}
+        WORKING_DIRECTORY "${RUN_DIR}"
         RESULTS_VARIABLE RC
     )
 
     if(RC)
-        list(JOIN ARGV " " CMD)
-        die("command failed: ${CMD}")
+        list(JOIN ARGV " " RUN_CMD)
+        die("command failed: ${RUN_CMD}")
     endif()
 endfunction()
 
@@ -122,32 +124,30 @@ function(fetch_repo HOST REPO REF)
 
     string(REPLACE "/" "_" REPO_DIR ${REPO})
 
-    get_filename_component(CMADE_SRC "${CMADE_CACHE}/${REPO_DIR}" REALPATH)
-    setg(CMADE_SRC "${CMADE_SRC}")
+    get_filename_component(DIR "${CMADE_CACHE}/${REPO_DIR}" REALPATH)
+
+    if(CMADE_NO_CACHE)
+        file(REMOVE_RECURSE "${DIR}")
+    endif()
 
     set(GIT_ARGS "clone")
     list(
         APPEND GIT_ARGS
-        "-c" "advice.detachedHead=false"
-        "--depth" "1"
+        -c advice.detachedHead=false
+        --depth 1
     )
 
     if(REF)
-        list(APPEND GIT_ARGS "--branch" "${REF}")
+        list(APPEND GIT_ARGS --branch "${REF}")
     endif()
 
-    if(IS_DIRECTORY "${CMADE_SRC}")
-        if(NOT CMADE_NO_CACHE)
-            msg("${REPO} already here")
-            return()
-        else()
-            info("cleaning ${REPO}")
-            file(REMOVE_RECURSE "${CMADE_SRC}")
-        endif()
+    if(NOT IS_DIRECTORY "${DIR}/sources")
+        info("cloning ${URL} in ${DIR}/sources")
+        run_prog(CMD git ${GIT_ARGS} ${URL} "${DIR}/sources")
     endif()
 
-    info("cloning ${URL} in ${CMADE_SRC}")
-    run_prog(git ${GIT_ARGS} ${URL} ${CMADE_SRC})
+    setg(CMADE_SOURCES "${DIR}/sources")
+    setg(CMADE_BUILD "${DIR}/build")
 endfunction()
 
 function(fetch_url URL)
@@ -180,7 +180,8 @@ function(fetch_url URL)
     endif()
 
     unique_dir("${DIR}/sources" SDIR)
-    setg(CMADE_SRC ${SDIR})
+    setg(CMADE_SOURCES ${SDIR})
+    setg(CMADE_BUILD_DIR "${DIR}/build")
 endfunction()
 
 ##############################################################################
@@ -188,14 +189,82 @@ endfunction()
 # Dependency installation functions
 #
 ##############################################################################
+function(build_cmake_dep SRCDIR ARGS)
+    run_prog(
+        CMD
+            ${CMAKE_COMMAND}
+            -DCMAKE_PREFIX_PATH=${CMADE_ENV}
+            -DCMAKE_INSTALL_PREFIX=${CMADE_ENV}
+            -DCMAKE_BUILD_TYPE:STRING=Release
+            -G Ninja -S ${SRCDIR} -B ${CMADE_BUILD} ${ARGS}
+    )
+    run_prog(CMD ${CMAKE_COMMAND} --build ${CMADE_BUILD} --parallel)
+    run_prog(CMD ${CMAKE_COMMAND} --install ${CMADE_BUILD})
+endfunction()
+
+function(build_meson_dep SRCDIR ARGS)
+    file(MAKE_DIRECTORY ${CMADE_BUILD})
+    run_prog(
+        DIR ${CMADE_BUILD}
+        CMD
+            meson
+            --prefix=${CMADE_ENV}
+            --pkg-config-path=${CMADE_ENV}
+            --cmake-prefix-path=${CMADE_ENV}
+            ${ARGS}
+            . ${SRCDIR}
+    )
+    run_prog(meson install)
+endfunction()
+
+function(build_autotools_dep SRCDIR ARGS)
+    file(MAKE_DIRECTORY ${CMADE_BUILD})
+    run_prog(
+        DIR ${CMADE_BUILD}
+        CMD
+            ${SRCDIR}/configure
+            --prefix=${CMADE_ENV}
+            ${ARGS}
+    )
+    run_prog(DIR ${CMADE_BUILD} make install)
+endfunction()
+
+function(build_dep ARGS)
+    set(SRCDIR ${CMADE_SOURCES})
+    string(REGEX MATCHALL "[^ \"']+|\"([^\"]*)\"|'([^']*)'" ARGS "${ARGS}")
+
+    foreach(ARG ${ARGS})
+        if(ARG MATCHES "^--srcdir=(.+)")
+            set(SRCDIR "${SRCDIR}/${CMAKE_MATCH_1}")
+        else()
+            list(APPEND CONF_ARGS ${ARG})
+        endif()
+    endforeach()
+
+    if(NOT IS_DIRECTORY "${SRCDIR}")
+        die("invalid source directory: ${SRCDIR}")
+    endif()
+
+    if(EXISTS "${SRCDIR}/CMakeLists.txt")
+        build_cmake_dep("${SRCDIR}" ${CONF_ARGS})
+    elseif(EXISTS "${SRCDIR}/meson.build")
+        build_meson_dep("${SRCDIR}" ${CONF_ARGS})
+    elseif(EXISTS "${SRCDIR}/configure")
+        build_autotools_dep("${SRCDIR}" ${CONF_ARGS})
+    else()
+        die("don't know how to build in ${SRCDIR}")
+    endif()
+endfunction()
+
 function(install_repo HOST REPO TAG ARGS)
     fetch_repo(${HOST} ${REPO} "${TAG}")
-    msg("sources are in: ${CMADE_SRC}")
+    build_dep("${ARGS}")
 endfunction()
 
 function(install_url URL ARGS)
+    msg("URL='${URL}' ARGS='${ARGS}'")
     fetch_url(${URL})
-    msg("sources are in: ${CMADE_SRC}")
+    build_dep("${ARGS}")
 endfunction()
 
 function(install_deps)
@@ -218,10 +287,10 @@ function(install_deps)
             set(REPO ${CMAKE_MATCH_2})
             set(TAG ${CMAKE_MATCH_4})
             set(ARGS "${CMAKE_MATCH_6}")
-            #install_repo(${HOST} ${REPO} "${TAG}" "${ARGS}")
-        elseif(SPEC MATCHES "^(.+)([ ](.+))?$")
+            install_repo(${HOST} ${REPO} "${TAG}" "${ARGS}")
+        elseif(SPEC MATCHES "^([^ ]+)([ ](.+))?$")
             set(URL ${CMAKE_MATCH_1})
-            set(ARGS "${CMAKE_MATCH_2}")
+            set(ARGS "${CMAKE_MATCH_3}")
             install_url(${URL} "${ARGS}")
         else()
             die("invalid dependency line: ${SPEC}")
@@ -284,6 +353,8 @@ function(parse_arguments)
     endif()
 
     setg(CMADE_ARGS "${CMADE_ARGS}")
+    get_filename_component(CMADE_ENV "${CMADE_ENV}" REALPATH)
+    setg(CMADE_ENV ${CMADE_ENV})
 endfunction()
 
 ##############################################################################
