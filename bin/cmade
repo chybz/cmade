@@ -1,11 +1,13 @@
-set(CMADE "cmade.cmake")
+#!/usr/bin/env -S cmake -P
+# -*- CMake -*-
+
+set(CMADE "cmade")
 set(CMDEPS "CMakeDeps.txt")
 set(CMADE_VERSION "0.1.0")
 set(CMADE_CACHE ".cmade/cache")
 list(
     APPEND
     CMADE_OPTIONS
-    "help"
     "verbose"
     "simulate"
     "no-cache"
@@ -83,6 +85,27 @@ function(download URL FILE)
     endif()
 endfunction()
 
+function(unique_dir PATH VAR)
+    file(GLOB PATHS "${PATH}/*")
+
+    foreach(PATH ${PATHS})
+        if(IS_DIRECTORY ${PATH})
+            list(APPEND ALL_DIRS ${PATH})
+        endif()
+    endforeach()
+
+    list(LENGTH ALL_DIRS DIRS)
+
+    if(DIRS EQUAL 0)
+        die("no directories found in ${PATH}")
+    elseif(DIRS GREATER 1)
+        die("multiple directories found ${PATH}")
+    endif()
+
+    list(GET ALL_DIRS 0 DIR)
+    set(${VAR} ${DIR} PARENT_SCOPE)
+endfunction()
+
 function(fetch_repo HOST REPO REF)
     if(HOST MATCHES "^\\$\\{(.+)\\}$")
         # Dereference variable
@@ -137,7 +160,6 @@ function(fetch_url URL)
     endif()
 
     get_filename_component(DIR "${CMADE_CACHE}/${HASH}" REALPATH)
-    setg(CMADE_SRC "${DIR}/sources")
 
     if(CMADE_NO_CACHE)
         file(REMOVE_RECURSE "${DIR}")
@@ -156,6 +178,9 @@ function(fetch_url URL)
             DESTINATION "${DIR}/sources"
         )
     endif()
+
+    unique_dir("${DIR}/sources" SDIR)
+    setg(CMADE_SRC ${SDIR})
 endfunction()
 
 ##############################################################################
@@ -193,7 +218,7 @@ function(install_deps)
             set(REPO ${CMAKE_MATCH_2})
             set(TAG ${CMAKE_MATCH_4})
             set(ARGS "${CMAKE_MATCH_6}")
-            install_repo(${HOST} ${REPO} "${TAG}" "${ARGS}")
+            #install_repo(${HOST} ${REPO} "${TAG}" "${ARGS}")
         elseif(SPEC MATCHES "^(.+)([ ](.+))?$")
             set(URL ${CMAKE_MATCH_1})
             set(ARGS "${CMAKE_MATCH_2}")
@@ -209,32 +234,47 @@ endfunction()
 # Argument functions
 #
 ##############################################################################
-function(parse_arguments)
-    foreach(_arg RANGE ${CMAKE_ARGC})
-        string(TOLOWER "${CMAKE_ARGV${_arg}}" ARG)
+function(locate_cmade_arguments)
+    set(FOUND OFF)
+
+    foreach(POS RANGE ${CMAKE_ARGC})
+        string(TOLOWER "${CMAKE_ARGV${POS}}" ARG)
+        math(EXPR POS "${POS}+1")
 
         if (ARG MATCHES "${CMADE}$")
-            math(EXPR _arg "${_arg}+1")
-
-            while(_arg LESS ${CMAKE_ARGC})
-                if ("${CMAKE_ARGV${_arg}}" MATCHES "--?([A-Za-z0-9_-]+)")
-                    list(FIND CMADE_OPTIONS ${CMAKE_MATCH_1} OPT)
-
-                    if (OPT LESS 0)
-                        die("unknown option: ${CMAKE_MATCH_1}")
-                    else()
-                        string(TOUPPER "CMADE_${CMAKE_MATCH_1}" OPT)
-                        string(REPLACE "-" "_" OPT "${OPT}")
-                        setg(${OPT} 1)
-                    endif()
-                else()
-                    list(APPEND CMADE_ARGS "${CMAKE_ARGV${_arg}}")
-                endif()
-
-                math(EXPR _arg "${_arg}+1")
-            endwhile()
+            # Script args follow us, POS already incremented
+            set(FOUND ON)
+            setg(CMADE_POS ${POS})
+            break()
         endif()
     endforeach()
+
+    if(NOT FOUND)
+        # Should not happen if script has correct name (see CMADE at top)
+        die("parse_argument")
+    endif()
+endfunction()
+
+function(parse_arguments)
+    locate_cmade_arguments()
+
+    while(CMADE_POS LESS ${CMAKE_ARGC})
+        if ("${CMAKE_ARGV${CMADE_POS}}" MATCHES "--?([A-Za-z0-9_-]+)")
+            list(FIND CMADE_OPTIONS ${CMAKE_MATCH_1} OPT)
+
+            if (OPT LESS 0)
+                die("unknown option: ${CMAKE_MATCH_1}")
+            else()
+                string(TOUPPER "CMADE_${CMAKE_MATCH_1}" OPT)
+                string(REPLACE "-" "_" OPT "${OPT}")
+                setg(${OPT} 1)
+            endif()
+        else()
+            list(APPEND CMADE_ARGS "${CMAKE_ARGV${CMADE_POS}}")
+        endif()
+
+        math(EXPR CMADE_POS "${CMADE_POS}+1")
+    endwhile()
 
     list(LENGTH CMADE_ARGS CMADE_ARGC)
 
