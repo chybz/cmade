@@ -1,2 +1,2 @@
-# cmdep
-CMake Depency Installer
+# CMade
+CMake Automated DEpency Installer
