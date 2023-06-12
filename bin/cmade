@@ -290,6 +290,27 @@ function(cmade_build_autotools_dep)
     endif()
 endfunction()
 
+function(cmade_build_makefile_dep)
+    cmade_state_file("built" built)
+    cmade_state_file("installed" INSTALLED)
+    file(MAKE_DIRECTORY ${CMADE_BUILD_DIR})
+
+    if(NOT EXISTS ${BUILT})
+        cmade_run_prog(
+            DIR ${CMADE_SOURCE_DIR}
+            CMD make
+        )
+        cmade_set_state("built")
+    endif()
+    if(NOT EXISTS ${INSTALLED})
+        cmade_run_prog(
+            DIR ${CMADE_SOURCE_DIR}
+            CMD make prefix=${CMADE_ENV} install
+        )
+        cmade_set_state("installed")
+    endif()
+endfunction()
+
 function(cmade_build_dep ARGS)
     string(REGEX MATCHALL "[^ \"']+|\"([^\"]*)\"|'([^']*)'" ARGS "${ARGS}")
 
@@ -311,6 +332,8 @@ function(cmade_build_dep ARGS)
         cmade_build_meson_dep(${CONF_ARGS})
     elseif(EXISTS "${CMADE_SOURCE_DIR}/configure")
         cmade_build_autotools_dep(${CONF_ARGS})
+    elseif(EXISTS "${CMADE_SOURCE_DIR}/Makefile")
+        cmade_build_makefile_dep(${CONF_ARGS})
     else()
         cmade_die("don't know how to build in ${CMADE_SOURCE_DIR}")
     endif()
