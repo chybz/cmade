@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install dependencies
-        run: apt install cmake git g++ ninja-build meson
+        run: sudo apt-get install cmake git g++ ninja-build meson
 
       - name: Test a small set of dependencies
         run: |
