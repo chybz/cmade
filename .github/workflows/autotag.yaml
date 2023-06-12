@@ -11,7 +11,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: '0'
-    - name: Minor version for each merge
+    - name: Prepare new tag
       id: tag-dry-run
       uses: anothrNick/github-tag-action@1.66.0
       env:
@@ -19,20 +19,18 @@ jobs:
         WITH_V: true
         DRY_RUN: true
 
-    - name: echo new tag
+    - name: Show new tag
       run: |
         echo "The next tag version will be: ${{ steps.tag-dry-run.outputs.new_tag }}"
-    - name: echo tag
-      run: |
         echo "The current tag is: ${{ steps.tag-dry-run.outputs.tag }}"
-    - name: echo part
-      run: |
         echo "The version increment was: ${{ steps.tag-dry-run.outputs.part }}"
 
-    # DO MY BUILD HERE
-    # IN CASE OF FAILURE, THE STEP BELOW WILL NOT RUN.
+    - name: Set tag in cmade script
+      run: |
+        sed -i -E \
+            -e 's/^set(CMADE_VERSION .*$/set(CMADE_VERSION "${{ steps.tag-dry-run.outputs.new_tag }}")/'
 
-    - name: Minor version for each merge
+    - name: Set new version
       id: tag-final
       uses: anothrNick/github-tag-action@1.66.0
       env:

@@ -3,7 +3,7 @@
 
 set(CMADE "cmade")
 set(CMADE_DEPSFILE "deps.txt")
-set(CMADE_VERSION "0.1.0")
+set(CMADE_VERSION "X.Y.Z")
 list(
     APPEND
     CMADE_VARS

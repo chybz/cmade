@@ -15,6 +15,21 @@ jobs:
     steps:
       - name: Install dependencies
         run: sudo apt-get install cmake
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build
+        run: echo ${{ github.sha }} > Release.txt
+
+      - name: Test
+        run: cat Release.txt
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./bin/cmade
+
       - name: checkout
         uses: actions/checkout@v3
         with:
