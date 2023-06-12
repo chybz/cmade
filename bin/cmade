@@ -454,7 +454,9 @@ endfunction()
 #
 ##############################################################################
 function(cmade_process_cmd)
-    if (CMADE_CMD STREQUAL "install")
+    if (CMADE_CMD STREQUAL "version")
+        message(${CMADE_VERSION})
+    elseif (CMADE_CMD STREQUAL "install")
         cmade_install_deps()
     elseif (CMADE_CMD STREQUAL "help")
         cmade_show_help()
