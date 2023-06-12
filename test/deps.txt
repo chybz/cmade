@@ -1,5 +1,5 @@
 madler/zlib@v1.2.11
-lz4/lz4@v1.9.3
+lz4/lz4@v1.9.3 --srcdir=build/cmake
 google/brotli@v1.0.9
 https://tukaani.org/xz/xz-5.2.5.tar.gz
 facebook/zstd@v1.4.5
