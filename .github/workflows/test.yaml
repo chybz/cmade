@@ -26,5 +26,4 @@ jobs:
 
       - name: Test a small set of dependencies
         run: |
-          cd test/small
-          ../../bin/cmade install
+          cd test && ../bin/cmade install
