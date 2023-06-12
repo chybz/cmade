@@ -28,7 +28,8 @@ jobs:
     - name: Set tag in cmade script
       run: |
         sed -i -E \
-            -e 's/^set(CMADE_VERSION .*$/set(CMADE_VERSION "${{ steps.tag-dry-run.outputs.new_tag }}")/'
+            -e 's/^set\(CMADE_VERSION .*$/set(CMADE_VERSION "${{ steps.tag-dry-run.outputs.new_tag }}")/' \
+            ./bin/cmade
 
     - name: Set new version
       id: tag-final
