@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: version
-        run: echo "::set-output name=version::$(./bin/cmade version)"
+        run: echo "version=$(./bin/cmade version)" >> $GITHUB_OUTPUT
         id: version
       - name: release
         uses: actions/create-release@v1
